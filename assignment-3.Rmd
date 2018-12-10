@@ -1,0 +1,162 @@
+---
+title: "assignment-3"
+author: "Jul"
+date: "29/11/2018"
+output: html_document
+---
+
+
+```{r Loading data}
+devtools::install_github("ewan/stats_course", subdir="data/clark_judgments")
+library(magrittr)
+source("functions.R")
+
+all_data <- clarkjudgments::acceptability
+filtered_data <- dplyr::filter(all_data, MOP=="MOP100")
+
+```
+
+#Question 1
+
+
+```{r Plotting}
+
+ggplot2::ggplot(filtered_data, 
+         ggplot2::aes(x=rating, fill=language)) + 
+         ggplot2::geom_histogram(binwidth = 5)  
+
+
+boxplot(filtered_data$rating ~ filtered_data$language, 
+        col=c("grey90","grey40"),  
+        main="Comparison of rating of acceptability judgements")
+```
+
+Voici deux façons de visualiser nos données. La première chose que l'on peut remarquer, c'est qu'elles ne semblent pas suivent une loi de distribution normale. Le premier plot nous montre que les données jugées bad seront plus souvent proche de 0. A l'inverse, les données jugées good elles se retrouvent plus souvent proche de 100 puis décroissent.
+
+La seconde chose que l'on remarque, à l'aide des boîtes à moustaches, c'est que les 2 groupes semblent avoir des écarts différents autour de leur moyenne respective (within-group variance), ce qui peut poser problème (généralement) dans l'utilisation d'un modèle linéaire - puisque l'on suppose que les erreurs sont distribuées identiquement. 
+
+# Question 2
+
+Concernant la génération des données : 3 options s'offraient à moi. Je n'ai malheureusement pas réussi à déterminer laquelle était "la bonne". 
+Deux d'entre elles sont en fait une même variante de la fonction en annexe (la seconde variante étant appelée "not used"). Il s'agit de différence concernant la façon dont on crée notre sample - et plus précisément, comment sélectionne-t-on la moyenne qui va servir à faire une distribution normale : doit-on la prendre entre 0 et 100 ou doit-on la prendre à l'intérieur aléatoirement à l'intérieur de notre vrai jeu de données.
+
+La dernière consisterait à créer le modèle linéaire à l'aide de la fonction lm(), puis d'utiliser la fonction predict() x fois.
+C'est la première méthode qui serait ici présentée.
+
+
+```{r Gestions des donnees}
+lang_adger_bad <-  filtered_data %>%
+  dplyr::filter(language == "adger-bad")
+lang_adger_good <-  filtered_data %>%
+  dplyr::filter(language == "adger-good")
+
+lang_good <- dplyr::summarise(lang_adger_good, total=n(), mean=mean(rating), sd=sd(rating)) 
+lang_bad  <- dplyr::summarise(lang_adger_bad, total=n(), mean=mean(rating), sd=sd(rating))
+```
+
+There is no difference in the means of the distributions between the two groups.
+Many simulated data made under Gaussian model.
+```{r}
+gauss_same_means <- generate_data_sets(lang_adger_good, lang_adger_bad, different_means = FALSE, replacing = FALSE)
+```
+
+The mean of the two groups is just as different as in the real data.
+Many simulated data made under Gaussian model.
+```{r}
+gauss_diff_means <- generate_data_sets(lang_adger_good, lang_adger_bad, different_means = TRUE, replacing = FALSE)
+```
+
+### Plotting
+
+```{r}
+ggplot2::ggplot(gauss_same_means, 
+                ggplot2::aes(x = coef)) + 
+                ggplot2::geom_histogram(binwidth = 0.2,
+                                        alpha=0.2,
+                                        col="yellow")
+                ggplot2::geom_vline(xintercept=mean(gauss_same_means$coef), size=0.2)
+                           
+ggplot2::ggplot(gauss_diff_means, 
+                ggplot2::aes(x = coef)) + 
+                ggplot2::geom_histogram(binwidth = 0.2,
+                                        alpha=0.2,
+                                        col="violet") 
+                ggplot2::geom_vline(xintercept=mean(gauss_diff_means$coef), size=0.2)
+```
+
+
+```{r}
+ggplot2::ggplot(NULL,
+                ggplot2::aes(x = coef)) +
+                ## H0 PLOT
+                ggplot2::geom_histogram(data=gauss_same_means,
+                                        binwidth = 0.2,
+                                        alpha=0.2,
+                                        col="yellow") +
+                ggplot2::geom_vline(xintercept=mean(gauss_same_means$coef), show.legend = T, size = 1) +
+                ## H1 PLOT
+                ggplot2::geom_histogram(data=gauss_diff_means,
+                                        binwidth = 0.2,
+                                        alpha=0.2,
+                                        col="violet") +
+                ggplot2::geom_vline(xintercept=mean(gauss_diff_means$coef), show.legend = T, size = 1)
+```
+
+Les deux représentations précédentes, ainsi que celle-ci, nous montre surtout que nous ne somme plus dans l'intervalle [0,100] qui était celui de nos données de départ.
+
+
+#### Generation of datasets
+```{r}
+distrib_same_means <- generate_data_sets(lang_adger_good, lang_adger_bad, different_means = FALSE, replacing = TRUE)
+distrib_diff_means <- generate_data_sets(lang_adger_good, lang_adger_bad, different_means = TRUE, replacing = TRUE)
+```
+
+#### Plot 
+
+```{r}
+
+ggplot2::ggplot(NULL,
+                ggplot2::aes(x = coef)) +
+                ## H0 PLOT
+                ggplot2::geom_histogram(data=distrib_same_means,
+                                        binwidth = 0.2,
+                                        alpha = 0.2,
+                                        col="yellow") +
+                ggplot2::geom_vline(xintercept=mean(distrib_same_means$coef), show.legend = T, size = 1) +
+                ## H1 PLOT
+                ggplot2::geom_histogram(data=distrib_diff_means,
+                                        binwidth = 0.2,
+                                        alpha=0.2,
+                                        col="violet") +
+                ggplot2::geom_vline(xintercept=mean(distrib_diff_means$coef), show.legend = T, size = 1)
+
+```
+
+Avoir fait une hypothèse de normalité ici influe énormément sur notre distribution. 
+Nos échantillons se retrouvent une fois de plus en dessous de 0. La moyenne, lorsqu'elle
+est partagée reste sur 0, la moyenne des coefficients, lorsque la moyenne des ratings a
+été dissocié correspond à celle de nos vrais datas est à -40, avec un pic en dessous des -50.
+
+Il serait compliqué de faire des conclusions à partir de ces données-ci à cause de la différence
+de variance (notamment) et donc de l'hypothèse gaussienne faite en début d'exercice. La moyenne
+on peut le voir ici, n'est pas représentative du groupe.
+
+#Questions 3
+Reduce the sample size of the observed simulated data sets to only three observations, and continue to sample
+the two hypotheses in the same ways. Discuss whether your conclusions change.
+
+```{r}
+three_gauss_same_means <- sample(gauss_same_means, 3, replace=TRUE)
+three_gauss_diff_means <- sample(gauss_diff_means, 3, replace=TRUE)
+three_distrib_same_means <- sample(distrib_same_means, 3, replace=TRUE)
+three_distrib_diff_means <- sample(distrib_diff_means, 3, replace=TRUE)
+```
+
+
+Se baser sur un plus petit échantillon ne changerait rien : si ce n'est qu'il est plus problable que par hasard,
+un tout petit échantillon prenne une certaine forme nous amenant à poser un peu trop hâtivement
+certaines hypothèses sans trop de façon de les vérifier. Un plus grand échantillon est donc toujours appréciable 
+pour analyser un tendance, mieux concevoir ses données et définir le modèle le plus adapter pour les analyser
+et en tirer quelque chose.
+
+
